@@ -40,7 +40,7 @@ export const streamUrl = async(req, res) => {
     const supabase = req.app.locals.supabase;
 
     try{
-        
+
     const {id} = req.params;
     const media = await pool.query(`select * from media_assets where id=$1`,[id]);
     if(media.rowCount==0) return res.status(404).send({message: 'No media found'});
@@ -57,5 +57,52 @@ export const streamUrl = async(req, res) => {
     } catch(error){
         console.error(error);
         return res.status(500).send({message: error.message});
+    }
+}
+
+export const logView = async(req, res) => {
+    const {id} = req.params;
+    try{
+    const media = await pool.query(`select * from media_assets where id=$1`,[id]);
+    if(media.rowCount==0) return res.status(404).send({message: 'No media found'});
+
+    await pool.query(`insert into media_view_logs(media_id, viewed_by_ip) values($1,$2)`,[id, req.ip]);
+
+    res.status(200).send({message: 'View logged'});
+
+    } catch(error){
+        console.error(error);
+        res.status(500).send({message: error.message});
+    }
+}
+
+export const analytics = async (req, res) => {
+    const {id} = req.params;
+    
+    try{
+        const media = await pool.query(`select * from media_assets where id=$1`,[id]);
+        if(media.rowCount==0) return res.status(404).send({message: 'No media found'});
+
+        const totalViews = await pool.query(`select count(*) from media_view_logs where media_id = $1`,[id]);
+
+        const uniqueIp = await pool.query(`select count(distinct viewed_by_ip) from media_view_logs where media_id=$1`,[id]);
+
+        const viewsPerDayRes = await pool.query(`select to_char(timestamp::DATE, 'YYYY-MM-DD') as day, count(*) as views from
+            media_view_logs where media_id=$1 group by day order by day`,[id]);
+
+        const viewsPerDay = {};
+         viewsPerDayRes.rows.forEach((row) => {
+      viewsPerDay[row.day] = parseInt(row.views, 10);
+    });
+
+         res.json({
+      total_views: parseInt(totalViews.rows[0].count, 10),
+      unique_ips: parseInt(uniqueIp.rows[0].count, 10),
+      views_per_day: viewsPerDay,
+    });
+
+    } catch(error){
+        console.error(error);
+        res.status(500).send({message: error.message});
     }
 }

@@ -29,19 +29,7 @@ FileService is a robust backend API designed for secure media file management. I
    npm install
    ```
 
-3. **Set up environment variables**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
-   ```
-
-4. **Initialize the database**
-   ```bash
-   # Run the SQL script in your PostgreSQL database
-   psql -d your_database -f database.sql
-   ```
-
-5. **Start the server**
+3. **Start the server**
    ```bash
    npm start
    # or for development
@@ -49,7 +37,7 @@ FileService is a robust backend API designed for secure media file management. I
    ```
 
 ## Environment Configuration
-
+Note : For this task, I already have a database running in supabase, so this step is optional.
 Create a `.env` file in the root directory with the following variables:
 
 ```env

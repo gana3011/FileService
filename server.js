@@ -14,16 +14,20 @@ app.use(express.json());
 const supabase = createClient(
     process.env.SUPABASE_URL,
     process.env.SERVICE_ROLE_KEY
-)
+);
 
 app.locals.supabase = supabase;
 
-app.use(bodyParser.json())
+app.use(bodyParser.json());
 
 app.use("/auth", authRoutes);
 
 app.use("/media", mediaRoutes);
 
-app.listen(3000,()=>{
-    console.log("Listening on port 3000");
-});
+if (process.env.NODE_ENV !== "test") {
+    app.listen(3000, () => {
+        console.log("Listening on port 3000");
+    });
+}
+
+export default app;

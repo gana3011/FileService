@@ -12,7 +12,7 @@ export const signup = async (req,res) => {
     
     const hashedPassword = await Password.toHash(password);
     await pool.query(`insert into admin_users(email,password) values($1,$2)`,[email,hashedPassword]);
-    return res.status(200).send({message : "Sign up successfull"});
+    return res.status(200).send({message : "Sign up successful"});
 
     } catch(err){
         console.error(err);
@@ -31,7 +31,9 @@ export const signin = async (req, res) => {
         const existingUser = result.rows[0];
 
         const passwordMatch = await Password.comparePasswords(existingUser.password, password);
-        if(!password) return es.status(400).send({ message: "Invalid credentials"});
+        if(!passwordMatch) {
+            return res.status(400).send({ message: "Invalid credentials" });
+        }
     
         const userJwt = jwt.sign({
             id: existingUser.id
@@ -39,7 +41,7 @@ export const signin = async (req, res) => {
         process.env.JWT_KEY,
         {expiresIn : "7d"}
     );
-    res.status(200).send("JWT:"+userJwt);
+    res.status(200).send({JWT: userJwt});
     } catch(err){
         console.error(err);
         res.status(500).send({message : err.message});

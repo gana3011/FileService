@@ -32,8 +32,6 @@ FileService is a robust backend API designed for secure media file management. I
 3. **Start the server**
    ```bash
    npm start
-   # or for development
-   npm run dev
    ```
 
 ## Environment Configuration
@@ -50,6 +48,9 @@ JWT_KEY=your-super-secret-jwt-key
 # Supabase Configuration
 SUPABASE_URL=https://your-project.supabase.co
 SERVICE_ROLE_KEY=your-supabase-service-role-key
+
+#Redis Configuration
+REDIS_URL=your-redis-url
 
 # Server Configuration
 PORT=3000
@@ -164,6 +165,41 @@ Authorization: Bearer <jwt-token>
 }
 ```
 
+### POST `/media/:id/view`
+Log a view for a media file with rate limiting (requires authentication).
+
+**Headers:**
+```
+Authorization: Bearer <jwt-token>
+```
+
+**Response:**
+```json
+{
+  "message": "View logged successfully"
+}
+```
+
+### GET `/media/:id/analytics`
+Retrieve analytics for a media file (requires authentication).
+
+**Headers:**
+```
+Authorization: Bearer <jwt-token>
+```
+
+**Response:**
+```json
+{
+  "total_views": 100,
+  "unique_ips": 50,
+  "views_per_day": {
+    "2025-09-01": 10,
+    "2025-09-02": 20
+  }
+}
+```
+
 ### Error Responses
 
 All endpoints return appropriate HTTP status codes with error messages:
@@ -174,39 +210,39 @@ All endpoints return appropriate HTTP status codes with error messages:
 }
 ```
 
+## Running Tests
 
-## 📁 Project Structure
-
-```
-FileService/
-├── src/
-│   ├── controller/
-│   │   ├── authController.js      # Authentication logic
-│   │   └── mediaController.js     # Media management logic
-│   ├── middleware/
-│   │   ├── check-auth.js          # JWT authentication middleware
-│   │   └── request-validation.js  # Input validation middleware
-│   └── routes/
-│       ├── authRoutes.js          # Authentication routes
-│       └── mediaRoutes.js         # Media routes
-├── utils/
-│   ├── database.js                # PostgreSQL connection setup
-│   └── password.js                # Password hashing utilities
-├── database.sql                   # Database schema
-├── server.js                      # Application entry point
-├── package.json                   # Project dependencies
-└── README.md                      # Project documentation
-```
-
-## 🔧 Development
-
-### Running in Development Mode
-
+### Run All Tests
 ```bash
-# Install nodemon for auto-restart
-npm install -g nodemon
-
-# Start development server
-nodemon server.js
+npm test
 ```
+
+### Cleanup Test Data
+After running tests, the test user `test@example.com` is automatically deleted from the database.
+
+## 🐳 Docker Support
+
+### Build Docker Image
+To build the Docker image for the FileService API, run the following command:
+```bash
+docker build -t fileservice .
+```
+
+### Run Docker Container
+To run the Docker container, use:
+```bash
+docker run -p 3000:3000 --name fileservice-container fileservice
+```
+
+### Stop and Remove Container
+To stop and remove the container:
+```bash
+docker stop fileservice-container
+
+docker rm fileservice-container
+```
+
+### Notes
+- Ensure the `.env` file is properly configured before building the Docker image.
+- The `--network=host` option is used to allow the container to access the host's network.
 

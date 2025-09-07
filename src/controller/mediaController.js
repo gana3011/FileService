@@ -1,108 +1,148 @@
 import { pool } from "../../utils/database.js";
+import Redis from "ioredis";
+
+const redis = new Redis(process.env.REDIS_URL);
 
 function sanitizeFileName(name) {
-  return name
-    .replace(/[^a-zA-Z0-9.\-_]/g, "_"); 
-    // keep only letters, numbers, dot, dash, underscore
+  return name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+  // keep only letters, numbers, dot, dash, underscore
 }
 
-export const media = async(req, res) => {
-    const supabase = req.app.locals.supabase;
-    
-    try {
-        const {title, type} = req.body;
-        const file = req.file;
+export const media = async (req, res) => {
+  const supabase = req.app.locals.supabase;
 
-        if(!file) return res.status(400).send({message: 'File is required'});
+  try {
+    const { title, type } = req.body;
+    const file = req.file;
 
-        const safeName = sanitizeFileName(file.originalname);
-        const filePath = `${Date.now()}-${safeName}`;
+    if (!file) return res.status(400).send({ message: "File is required" });
 
-        const {data, error} = await supabase.storage.from("FileService").upload(filePath, file.buffer, {
-            contentType: file.mimetype,
-            upsert: false,
-        });
+    const safeName = sanitizeFileName(file.originalname);
+    const filePath = `${Date.now()}-${safeName}`;
 
-        if(error) {
-            return res.status(500).send({message: error.message});
-        }
+    const { data, error } = await supabase.storage
+      .from("FileService")
+      .upload(filePath, file.buffer, {
+        contentType: file.mimetype,
+        upsert: false,
+      });
 
-        const result = await pool.query(`insert into media_assets(title, type, file_url) values ($1,$2,$3) returning *`, [title, type, data.path]);
-        return res.status(200).send(result.rows[0]);
-    } catch (error) {
-        console.error(error);
-        res.status(500).send({message: error.message});
+    if (error) {
+      return res.status(500).send({ message: error.message });
     }
-}
 
+    const result = await pool.query(
+      `insert into media_assets(title, type, file_url) values ($1,$2,$3) returning *`,
+      [title, type, data.path]
+    );
+    return res.status(200).send(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ message: error.message });
+  }
+};
 
-export const streamUrl = async(req, res) => {
-    const supabase = req.app.locals.supabase;
+export const streamUrl = async (req, res) => {
+  const supabase = req.app.locals.supabase;
 
-    try{
-
-    const {id} = req.params;
-    const media = await pool.query(`select * from media_assets where id=$1`,[id]);
-    if(media.rowCount==0) return res.status(404).send({message: 'No media found'});
+  try {
+    const { id } = req.params;
+    const media = await pool.query(`select * from media_assets where id=$1`, [
+      id,
+    ]);
+    if (media.rowCount == 0)
+      return res.status(404).send({ message: "No media found" });
 
     const filePath = media.rows[0].file_url;
 
-    await pool.query(`insert into media_view_logs(media_id, viewed_by_ip) values($1,$2)`,[id, req.ip]);
+    await pool.query(
+      `insert into media_view_logs(media_id, viewed_by_ip) values($1,$2)`,
+      [id, req.ip]
+    );
 
-    const {data, error} = await supabase.storage.from("FileService").createSignedUrl(filePath, 60*10);
+    const { data, error } = await supabase.storage
+      .from("FileService")
+      .createSignedUrl(filePath, 60 * 10);
 
-    if(error) return res.status(500).send({message: error.message});
+    if (error) return res.status(500).send({ message: error.message });
 
-    return res.status(200).send({url: data.signedUrl});
-    } catch(error){
-        console.error(error);
-        return res.status(500).send({message: error.message});
-    }
-}
+    return res.status(200).send({ url: data.signedUrl });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).send({ message: error.message });
+  }
+};
 
-export const logView = async(req, res) => {
-    const {id} = req.params;
-    try{
-    const media = await pool.query(`select * from media_assets where id=$1`,[id]);
-    if(media.rowCount==0) return res.status(404).send({message: 'No media found'});
+export const logView = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const media = await pool.query(`select * from media_assets where id=$1`, [
+      id,
+    ]);
+    if (media.rowCount == 0)
+      return res.status(404).send({ message: "No media found" });
 
-    await pool.query(`insert into media_view_logs(media_id, viewed_by_ip) values($1,$2)`,[id, req.ip]);
+    await pool.query(
+      `insert into media_view_logs(media_id, viewed_by_ip) values($1,$2)`,
+      [id, req.ip]
+    );
 
-    res.status(200).send({message: 'View logged'});
-
-    } catch(error){
-        console.error(error);
-        res.status(500).send({message: error.message});
-    }
-}
+    res.status(200).send({ message: "View logged" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ message: error.message });
+  }
+};
 
 export const analytics = async (req, res) => {
-    const {id} = req.params;
-    
-    try{
-        const media = await pool.query(`select * from media_assets where id=$1`,[id]);
-        if(media.rowCount==0) return res.status(404).send({message: 'No media found'});
+  const { id } = req.params;
+  const cacheKey = `media:${id}:analytics`;
 
-        const totalViews = await pool.query(`select count(*) from media_view_logs where media_id = $1`,[id]);
+  try {
+    const media = await pool.query(`select * from media_assets where id=$1`, [
+      id,
+    ]);
+    if (media.rowCount == 0)
+      return res.status(404).send({ message: "No media found" });
 
-        const uniqueIp = await pool.query(`select count(distinct viewed_by_ip) from media_view_logs where media_id=$1`,[id]);
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return res.json(JSON.parse(cached));
+    }
 
-        const viewsPerDayRes = await pool.query(`select to_char(timestamp::DATE, 'YYYY-MM-DD') as day, count(*) as views from
-            media_view_logs where media_id=$1 group by day order by day`,[id]);
+    const totalViews = await pool.query(
+      `select count(*) from media_view_logs where media_id = $1`,
+      [id]
+    );
 
-        const viewsPerDay = {};
-         viewsPerDayRes.rows.forEach((row) => {
+    const uniqueIp = await pool.query(
+      `select count(distinct viewed_by_ip) from media_view_logs where media_id=$1`,
+      [id]
+    );
+
+    const viewsPerDayRes = await pool.query(
+      `select to_char(timestamp::DATE, 'YYYY-MM-DD') as day, count(*) as views from
+            media_view_logs where media_id=$1 group by day order by day`,
+      [id]
+    );
+
+    const viewsPerDay = {};
+    viewsPerDayRes.rows.forEach((row) => {
       viewsPerDay[row.day] = parseInt(row.views, 10);
     });
 
-         res.json({
+    const response = {
       total_views: parseInt(totalViews.rows[0].count, 10),
       unique_ips: parseInt(uniqueIp.rows[0].count, 10),
       views_per_day: viewsPerDay,
-    });
+    };
 
-    } catch(error){
-        console.error(error);
-        res.status(500).send({message: error.message});
-    }
-}
+    await redis.setex(cacheKey, 300, JSON.stringify(response));
+
+    return res.json(response);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ message: error.message });
+  }
+};
